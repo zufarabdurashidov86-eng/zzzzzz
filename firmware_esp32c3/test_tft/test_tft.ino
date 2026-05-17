@@ -1,17 +1,17 @@
 /*
- * TFT 1.8" ST7735 - kengaytirilgan diagnostik test
+ * TFT 1.8" ST7735 - SOFTWARE SPI diagnostik test
  *
- * Tekshiradi:
- *  - Manual reset (RES pinini qo'l bilan tortish)
- *  - 4 xil initR variantini ketma-ket sinaydi
- *  - Har bir variant uchun rang flesh + matn ko'rsatadi
- *  - Serial'da har qadamni log qiladi
+ * MUHIM: Bu versiya software (bit-bang) SPI ishlatadi.
+ * Hardware SPI muammolarini chetlab o'tadi va har qanday GPIO bilan ishlaydi.
+ * Sekinroq, lekin ishonchli diagnostika beradi.
+ *
+ * Agar bu test ishlasa - sim to'g'ri, faqat hardware SPI sozlash kerak.
+ * Agar bu ham ishlamasa - sim muammosi bor.
  *
  * Pinlar:
  *   SCK=GPIO4, MOSI=GPIO6, RES=GPIO5, DC=GPIO10, CS=GPIO7
  */
 
-#include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 
@@ -21,8 +21,9 @@
 #define TFT_MOSI  6
 #define TFT_SCLK  4
 
-SPIClass tftSPI(FSPI);
-Adafruit_ST7735 tft = Adafruit_ST7735(&tftSPI, TFT_CS, TFT_DC, TFT_RST);
+// Software SPI: parametrlar tartibi farqli!
+// (cs, dc, mosi, sclk, rst)
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 // Manual reset - ba'zi modullar bunga ehtiyoj sezadi
 void hardReset() {
@@ -69,12 +70,9 @@ void runTest(const char *label, uint8_t variant) {
 void setup() {
   Serial.begin(115200);
   delay(1500);
-  Serial.println("\n\n=== TFT KENGAYTIRILGAN TEST ===");
+  Serial.println("\n\n=== TFT SOFTWARE SPI TEST ===");
   Serial.println("Pinlar: SCK=4, MOSI=6, RST=5, DC=10, CS=7");
-
-  // SPI ni boshlash
-  tftSPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
-  Serial.println("SPI tayyor");
+  Serial.println("(Bit-bang rejimi - sekin lekin ishonchli)");
 
   // 4 xil variant ketma-ket
   runTest("BLACKTAB",    INITR_BLACKTAB);
