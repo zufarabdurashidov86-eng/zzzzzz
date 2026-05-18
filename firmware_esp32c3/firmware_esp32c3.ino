@@ -1,26 +1,22 @@
 /*
- * AI Voice Assistant - ESP32-C3 SuperMini + INMP441 + TFT 1.8" ST7735
+ * AI Voice Assistant - ESP32-C3 SuperMini + INMP441
+ * (Serial Monitor versiyasi - TFT siz)
  *
  * Foydalanish:
  *   1) BOOT tugmani (GPIO9) bosib turing -> mikrofon yoziladi
  *   2) Tugmani qo'yib yuboring -> audio serverga yuboriladi
- *   3) TFT ekranda javob ko'rinadi
+ *   3) Javob Serial Monitor'da chiqadi (115200 baud)
  *
  * Arduino IDE sozlamalari:
- *   - Boards Manager: "esp32" by Espressif >= 3.0
  *   - Board: "ESP32C3 Dev Module"
  *   - USB CDC On Boot: "Enabled"
  *   - CPU Frequency: 160 MHz
  *   - Flash Size: 4MB
  *   - Partition Scheme: "Default 4MB with spiffs"
  *
- * Kutubxonalar (Library Manager):
- *   - Adafruit GFX Library
- *   - Adafruit ST7735 and ST7789 Library
+ * Kerakli kutubxonalar yo'q (faqat built-in WiFi va I2S)
  *
  * Pinlar:
- *   TFT 1.8" ST7735 (SPI):
- *     SCK=GPIO4, MOSI=GPIO6, RES=GPIO5, DC=GPIO10, CS=GPIO7
  *   INMP441 (I2S):
  *     WS=GPIO1, SCK=GPIO0, SD=GPIO3, L/R=GND
  *   Button: GPIO9 (BOOT tugmasi yoki tashqi tugma -> GND)
@@ -28,15 +24,12 @@
 
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <SPI.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
 #include <driver/i2s.h>
 
 // ---------------- KONFIG ----------------
-#define WIFI_SSID      "YOUR_WIFI"
-#define WIFI_PASSWORD  "YOUR_PASSWORD"
-#define SERVER_URL     "http://192.168.1.100:8000/ask"
+#define WIFI_SSID      "MacHotspot"
+#define WIFI_PASSWORD  "abcd1234"
+#define SERVER_URL     "http://192.168.2.1:8000/ask"
 #define LANG           "uz"   // "uz" | "en" | "auto"
 
 // Tugma
@@ -50,76 +43,9 @@
 #define SAMPLE_RATE    16000
 #define MAX_REC_SEC    8
 
-// TFT (ST7735, 128x160)
-#define TFT_CS    7
-#define TFT_DC    10
-#define TFT_RST   5
-#define TFT_MOSI  6
-#define TFT_SCLK  4
-// SPI hardware: ESP32-C3 da custom pinlar SPIClass orqali
-
-SPIClass tftSPI(FSPI);
-Adafruit_ST7735 tft = Adafruit_ST7735(&tftSPI, TFT_CS, TFT_DC, TFT_RST);
-
 // Buffer (ESP32-C3 ~320KB RAM, 256KB ni xavfsiz olamiz -> ~8 sek)
 #define MAX_AUDIO_BYTES (256 * 1024)
 static uint8_t *audioBuf = nullptr;
-
-// ---------------- TFT HELPERS ----------------
-void tftStatus(const String &line1, const String &line2 = "") {
-  tft.fillScreen(ST77XX_BLACK);
-  tft.setTextColor(ST77XX_WHITE);
-  tft.setTextSize(2);
-  tft.setCursor(4, 10);
-  tft.println(line1);
-  if (line2.length()) {
-    tft.setTextSize(1);
-    tft.setCursor(4, 50);
-    tft.println(line2);
-  }
-}
-
-// Word-wrap matn chiqarish, kerak bo'lsa sahifalab
-void tftShowAnswer(const String &text) {
-  tft.fillScreen(ST77XX_BLACK);
-  tft.setTextColor(ST77XX_GREEN);
-  tft.setTextSize(1);
-
-  // 128 px width / 6 px per char ~ 21 char/line
-  // 160 px height / 10 px per line ~ 16 lines
-  const int charsPerLine = 21;
-  const int linesPerScreen = 15;
-
-  int total = text.length();
-  int pos = 0;
-  int linesShown = 0;
-  tft.setCursor(2, 2);
-
-  while (pos < total) {
-    int end = pos + charsPerLine;
-    if (end > total) end = total;
-
-    if (end < total) {
-      int sp = end;
-      while (sp > pos && text.charAt(sp) != ' ') sp--;
-      if (sp > pos) end = sp;
-    }
-
-    String line = text.substring(pos, end);
-    line.trim();
-    tft.println(line);
-    linesShown++;
-    pos = end;
-    while (pos < total && text.charAt(pos) == ' ') pos++;
-
-    if (linesShown >= linesPerScreen && pos < total) {
-      delay(3000);
-      tft.fillScreen(ST77XX_BLACK);
-      tft.setCursor(2, 2);
-      linesShown = 0;
-    }
-  }
-}
 
 // ---------------- I2S MIKROFON ----------------
 void initMic() {
@@ -191,7 +117,10 @@ size_t buildWavHeader(uint8_t *buf, uint32_t dataBytes) {
 
 // ---------------- AUDIO YOZIB SERVERGA YUBORISH ----------------
 String recordAndSend() {
-  tftStatus("Yozilmoqda", "Gapiring...");
+  Serial.println();
+  Serial.println("==============================");
+  Serial.println(">>> YOZILMOQDA... GAPIRING");
+  Serial.println("==============================");
 
   // WAV: avval 44 baytni bo'sh qoldiramiz, oxirida to'ldiramiz
   size_t written = 44;
@@ -215,9 +144,15 @@ String recordAndSend() {
   }
 
   uint32_t dataBytes = written - 44;
+  uint32_t durationMs = millis() - startMs;
   buildWavHeader(audioBuf, dataBytes);
 
-  tftStatus("Yuborilmoqda", String(dataBytes / 1024) + " KB");
+  Serial.print(">>> Yozildi: ");
+  Serial.print(dataBytes);
+  Serial.print(" bayt, ");
+  Serial.print(durationMs);
+  Serial.println(" ms");
+  Serial.println(">>> Serverga yuborilmoqda...");
 
   HTTPClient http;
   WiFiClient client;
@@ -225,12 +160,20 @@ String recordAndSend() {
   http.addHeader("Content-Type", "audio/wav");
   http.setTimeout(30000);
 
+  unsigned long sendStart = millis();
   int code = http.POST(audioBuf, written);
+  unsigned long sendDuration = millis() - sendStart;
+
   String reply;
   if (code == 200) {
     reply = http.getString();
+    Serial.print(">>> HTTP 200 OK (");
+    Serial.print(sendDuration);
+    Serial.println(" ms)");
   } else {
     reply = "HTTP xatosi: " + String(code);
+    Serial.print(">>> XATO: HTTP ");
+    Serial.println(code);
   }
   http.end();
   return reply;
@@ -238,47 +181,61 @@ String recordAndSend() {
 
 // ---------------- WIFI ----------------
 void connectWifi() {
-  tftStatus("WiFi", "ulanmoqda...");
+  Serial.print("WiFi ulanmoqda: ");
+  Serial.print(WIFI_SSID);
+  Serial.print(" ");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) {
-    delay(300);
+    delay(500);
+    Serial.print(".");
   }
+  Serial.println();
   if (WiFi.status() == WL_CONNECTED) {
-    tftStatus("WiFi OK", WiFi.localIP().toString());
-    delay(1200);
+    Serial.print("WiFi OK! IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("Signal: ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
   } else {
-    tftStatus("WiFi", "XATO!");
-    delay(2000);
+    Serial.println("WiFi XATO! Tarmoq topilmadi yoki parol noto'g'ri.");
   }
 }
 
 // ---------------- SETUP / LOOP ----------------
 void setup() {
   Serial.begin(115200);
+  delay(2000);
+  Serial.println();
+  Serial.println("================================");
+  Serial.println("AI Voice Assistant - Serial mode");
+  Serial.println("================================");
+
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-  // SPI custom pinlar bilan
-  tftSPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
-
-  tft.initR(INITR_BLACKTAB);     // 1.8" 128x160 ko'p variantlar uchun
-  tft.setRotation(0);
-  tft.fillScreen(ST77XX_BLACK);
-
-  tftStatus("AI Yordamchi", "ishga tushyapti...");
 
   // RAM dan audio buffer
   audioBuf = (uint8_t*)malloc(MAX_AUDIO_BYTES);
   if (!audioBuf) {
-    tftStatus("XATO", "RAM yetmadi");
+    Serial.println("XATO: RAM yetmadi!");
     while (true) delay(1000);
   }
+  Serial.print("Audio buffer: ");
+  Serial.print(MAX_AUDIO_BYTES / 1024);
+  Serial.println(" KB");
 
   connectWifi();
-  initMic();
 
-  tftStatus("Tayyor!", "Tugmani bosib gapiring");
+  Serial.println("I2S mikrofon ishga tushirilmoqda...");
+  initMic();
+  Serial.println("Mikrofon tayyor.");
+
+  Serial.println();
+  Serial.println("================================");
+  Serial.println(">>> TAYYOR!");
+  Serial.println(">>> BOOT tugmani bosib turing");
+  Serial.println(">>> va savol bering");
+  Serial.println("================================");
 }
 
 void loop() {
@@ -287,9 +244,15 @@ void loop() {
     if (digitalRead(BUTTON_PIN) == LOW) {
       String answer = recordAndSend();
       if (answer.length() == 0) answer = "(bo'sh javob)";
-      tftShowAnswer(answer);
-      delay(2000);
-      tftStatus("Tayyor!", "Tugmani bosib gapiring");
+
+      Serial.println();
+      Serial.println("================================");
+      Serial.println(">>> JAVOB:");
+      Serial.println("================================");
+      Serial.println(answer);
+      Serial.println("================================");
+      Serial.println();
+      Serial.println(">>> Yana savol uchun BOOT tugmani bosing");
     }
   }
   delay(20);
