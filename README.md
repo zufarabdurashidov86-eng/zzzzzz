@@ -1,8 +1,18 @@
-# ESP8266 AI Voice Assistant (uz / en)
+# AI Voice Assistant (uz / en)
 
-NodeMCU ESP8266 + INMP441 mikrofon + 0.96" OLED yordamida ovozli AI yordamchi.
-Foydalanuvchi tugmani bosib mikrofonga gapiradi (o'zbek yoki ingliz tilida),
-javob OLED ekranida chiqadi.
+INMP441 mikrofon + ekran (OLED yoki TFT) + ESP modul yordamida ovozli AI
+yordamchi. Foydalanuvchi tugmani bosib mikrofonga gapiradi (o'zbek yoki ingliz
+tilida), javob ekranda chiqadi.
+
+## Ikki firmware varianti
+
+| Variant | Modul | Ekran | RAM | Audio uzunligi | Papka |
+|---------|-------|-------|-----|----------------|-------|
+| Asosiy (boshlang'ich) | NodeMCU ESP8266 | OLED 0.96" SSD1306 (I2C) | ~80 KB | ~2 sek | `firmware/` |
+| **Tavsiya etiladi** | ESP32-C3 SuperMini | TFT 1.8" ST7735 (SPI) | ~320 KB | **~8 sek**, rangli | `firmware_esp32c3/` |
+
+Ikki variant ham bir xil server kodi bilan ishlaydi (`server/main.py`).
+ESP32-C3 versiyasi RAM, ekran o'lchami va USB-C tufayli ancha qulayroq.
 
 ## Qanday ishlaydi
 
@@ -81,13 +91,44 @@ curl -X POST "http://localhost:8000/ask?lang=uz" \
 
 ## Firmware (Arduino IDE)
 
-### Talab qilingan kutubxonalar (Library Manager orqali)
-- **Adafruit GFX Library**
-- **Adafruit SSD1306**
+### A) ESP32-C3 SuperMini + TFT 1.8" ST7735 (tavsiya etiladi)
+
+Pinlar va to'liq diagramma: [`docs/wiring_esp32c3.md`](docs/wiring_esp32c3.md)
+
+#### Arduino IDE sozlash
+1. **File → Preferences → Additional Board URLs** ga qo'shing:
+   `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
+2. Boards Manager → "esp32" by Espressif Systems (>= 3.0) ni o'rnating.
+3. **Tools → Board: "ESP32C3 Dev Module"**
+4. **USB CDC On Boot: Enabled**
+5. **CPU Frequency: 160 MHz**
+
+#### Library Manager (kerakli kutubxonalar)
+- Adafruit GFX Library
+- Adafruit ST7735 and ST7789 Library
+
+#### Sozlash
+`firmware_esp32c3/firmware_esp32c3.ino` boshida:
+```cpp
+#define WIFI_SSID      "YOUR_WIFI"
+#define WIFI_PASSWORD  "YOUR_PASSWORD"
+#define SERVER_URL     "http://192.168.1.100:8000/ask"
+#define LANG           "uz"
+```
+
+#### Yuklash
+USB-C bilan ulang → port avtomatik aniqlanadi → Upload.
+(Driver shart emas — ESP32-C3 native USB CDC ishlatadi.)
+
+### B) NodeMCU ESP8266 + OLED 0.96" (asosiy variant)
+
+#### Library Manager (kerakli kutubxonalar)
+- Adafruit GFX Library
+- Adafruit SSD1306
 
 `I2S` kutubxonasi ESP8266 core ichida (alohida o'rnatish shart emas).
 
-### Sozlash
+#### Sozlash
 
 `firmware/firmware.ino` fayli boshida quyidagilarni o'zgartiring:
 
@@ -101,7 +142,7 @@ curl -X POST "http://localhost:8000/ask?lang=uz" \
 `SERVER_URL` da `192.168.1.100` ni serveringiz lokal IP manziliga almashtiring
 (Windows: `ipconfig`, Linux/Mac: `ip a`).
 
-### Yuklash
+#### Yuklash
 1. Arduino IDE -> Board: **NodeMCU 1.0 (ESP-12E Module)**
 2. Tools -> CPU Frequency: **160 MHz** (audio uchun)
 3. Tools -> Flash Size: **4MB (FS:2MB OTA:~1019KB)**
